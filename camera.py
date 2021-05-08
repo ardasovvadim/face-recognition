@@ -19,7 +19,7 @@ if __name__ == '__main__':
         ret, frame = cap.read()
 
         # Our operations on the frame come here
-        frameImage = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
+        frameImage = frame
         faceMaskMaker.process(frameImage)
 
         # Display the resulting frame
