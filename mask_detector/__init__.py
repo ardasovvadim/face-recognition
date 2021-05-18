@@ -1,0 +1,1 @@
+from .mask_detector_model import MaskDetectorModel

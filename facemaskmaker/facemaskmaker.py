@@ -1,18 +1,23 @@
+import math
+
 import cv2
-import os
+import dlib
 import imutils
 import numpy as np
-import dlib
 from imutils import face_utils
-import math
 
 
 class FaceMaskMaker:
 
     def __init__(self, args) -> None:
-        path_to_face_detector = args["face-detector"] if "face-detector" in args else 'models/mmod_human_face_detector.dat'
-        self.face_detector = dlib.cnn_face_detection_model_v1(path_to_face_detector)
-        path_to_shape_predictor = args["shape-predictor"] if "shape-predictor" in args else 'models/shape_predictor_68_face_landmarks.dat'
+        if 'use_cnn' in args and args['use_cnn'] is True:
+            path_to_face_detector = args["face-detector"] if "face-detector" in args else r'C:\DevEnv\Workspaces\facemask-maker\facemaskmaker\models\mmod_human_face_detector.dat'
+            self.face_detector = dlib.cnn_face_detection_model_v1(path_to_face_detector)
+            self.use_cnn = True
+        else:
+            self.face_detector = dlib.get_frontal_face_detector()
+            self.use_cnn = False
+        path_to_shape_predictor = args["shape-predictor"] if "shape-predictor" in args else r'C:\DevEnv\Workspaces\facemask-maker\facemaskmaker\models\shape_predictor_68_face_landmarks.dat'
         self.shape_predictor = dlib.shape_predictor(path_to_shape_predictor)
 
     def get_face_rectangles_by_cnn_dlib(self, image, write_labels=False):
@@ -21,11 +26,11 @@ class FaceMaskMaker:
         if write_labels:
             image = image.copy()
             for (i, m_rect) in enumerate(m_rectangles):
-                (rectangleX, rectangleY, rectangleWidth, rectangleHeight) = face_utils.rect_to_bb(m_rect.rect)
+                (rectangleX, rectangleY, rectangleWidth, rectangleHeight) = face_utils.rect_to_bb(m_rect.rect) if self.use_cnn else face_utils.rect_to_bb(m_rect)
                 cv2.rectangle(image, (rectangleX, rectangleY), (rectangleX + rectangleWidth, rectangleY + rectangleHeight), (0, 255, 0), 2)
                 cv2.putText(image, f"Face #{i + 1}", (rectangleX, rectangleY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-        return [m_rect.rect for m_rect in m_rectangles], image
+        return [m_rect.rect for m_rect in m_rectangles] if self.use_cnn else m_rectangles, image
 
     def get_shape68_by_dlib(self, image, rectangles, write_shape_points=False):
         if write_shape_points:
@@ -41,10 +46,7 @@ class FaceMaskMaker:
             if write_shape_points:
                 for i in range(len(shape)):
                     x, y = shape[i]
-                    if i == 8:
-                        cv2.circle(image, (x, y), 2, (0, 255, 0), -1)
-                    else:
-                        cv2.circle(image, (x, y), 2, (0, 0, 255), -1)
+                    cv2.circle(image, (x, y), 2, (0, 0, 255), -1)
 
 
         return shapes, image
