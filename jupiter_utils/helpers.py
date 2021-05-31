@@ -10,7 +10,6 @@ def get_paths_of_files_by_extension(path, extension='png'):
 
 
 def print_image(img, title='result'):
-    cv2.COLOR_BGRA2RGBA
     copy_img = img.copy()
     copy_img = cv2.cvtColor(copy_img, cv2.COLOR_BGR2RGB)
     plt.imshow(copy_img, interpolation='none')

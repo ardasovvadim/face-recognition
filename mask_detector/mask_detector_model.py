@@ -1,6 +1,5 @@
 import datetime
 import time
-
 import cv2.dnn
 import numpy as np
 from keras.callbacks import Callback
@@ -16,6 +15,8 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.models import load_model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.preprocessing.image import img_to_array
+
 
 INIT_LR = 1e-4
 EPOCHS = 20
@@ -44,6 +45,9 @@ class MaskDetectorModel:
         ssn_weights_path = args['ssn_weights_path'] if 'ssn_weights_path' in args else r'C:\DevEnv\Workspaces\facemask-maker\mask_detector\models\face_detector\res10_300x300_ssd_iter_140000.caffemodel'
         self.ssn_face_detector = cv2.dnn.readNet(ssn_dep_path, ssn_weights_path)
         self.ssn_confidence = args['ssn_confidence'] if 'ssn_confidence' in args else 0.5
+
+        if 'model_path' in args:
+            self.load_from(args['model_path'])
 
         super().__init__()
 
@@ -107,7 +111,7 @@ class MaskDetectorModel:
             class_mode='categorical',
             subset='training'
         )
-
+        self.train_data_generator.next()
         self.test_data_generator = image_data_generator.flow_from_directory(
             dataset_path,
             target_size=SHAPE[:2],
@@ -157,6 +161,7 @@ class MaskDetectorModel:
     def detect_face(self, img, write_labels=False):
         if not self.ssn_face_detector:
             print("SSN wasn't initialized")
+            return
 
         face_rectangles = []
         img = img.copy()
@@ -184,3 +189,41 @@ class MaskDetectorModel:
                     img = cv2.rectangle(img, (startX, startY), (endX, endY), color, 2)
 
         return face_rectangles, img
+
+    def detect_face_mask(self, img, write_labels=False):
+        if not self.model:
+            print("Model wasn't loaded")
+            return
+
+        img = img.copy()
+        faces = []
+        predictions = []
+
+        rectangles, _ = self.detect_face(img, False)
+        for rect in rectangles:
+            startX, startY, endX, endY = rect
+            face = img[startY:endY, startX:endX]
+            face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
+            face = cv2.resize(face, (224, 224))
+            face = img_to_array(face)
+            face = preprocess_input(face)
+            faces.append(face)
+
+        if len(faces) > 0:
+            faces = np.array(faces, dtype="float32")
+            predictions = self.model.predict(faces, batch_size=32)
+
+        if write_labels:
+            for (box, prediction) in zip(rectangles, predictions):
+                (startX, startY, endX, endY) = box
+                (mask, withoutMask) = prediction
+
+                label = "Mask" if mask > withoutMask else "No Mask"
+                color = (0, 255, 0) if label == "Mask" else (0, 0, 255)
+
+                label = "{}: {:.2f}%".format(label, max(mask, withoutMask) * 100)
+
+                img = cv2.putText(img, label, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 2)
+                img = cv2.rectangle(img, (startX, startY), (endX, endY), color, 2)
+
+        return predictions, img
